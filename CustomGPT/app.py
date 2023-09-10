@@ -9,6 +9,7 @@ from langchain.embeddings.openai import OpenAIEmbeddings # used to make the embe
 
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import Chroma
+from langchain.chains import RetrievalQA
 
 # Set up OpenAI API key
 os.environ["OPENAI_API_KEY"] = config("OPEN_AI_SECRET_KEY")
@@ -20,16 +21,22 @@ query = st.text_input("What Do You Want To Know: ", value="", max_chars=1000, ke
 # load my data
 loader = DirectoryLoader("data/", glob="*.txt")
 
-text_splitter = CharacterTextSplitter.from_tiktoken_encoder(chunk_size=800, chunk_overlap=200)
-documents = text_splitter.split_documents(loader.load())
+documents = loader.load()
 
-db = Chroma.from_documents(documents, OpenAIEmbeddings())
+text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
 
-# Llms - Language Learning Management System (This is the name of the AI)
-llm = OpenAI(temperature=0.9, vector_store=db)
+texts = text_splitter.split_documents(documents)
 
-# Generate response
+# make the embeddings
+embeddings = OpenAIEmbeddings(openai_api_key=os.environ["OPENAI_API_KEY"])
+
+documents_search = Chroma.from_documents(texts, embeddings)
+
+llmMe = OpenAI(openai_api_key=os.environ["OPENAI_API_KEY"])
+
+qa = RetrievalQA.from_chain_type(llm = llmMe, chain_type='stuff', retriever=documents_search.as_retriever())
+
+# ask a question
 if query:
-    response = llm(prompt=query)
-    st.write(response)
-    
+    answer = qa.run(query)
+    st.write(answer)
